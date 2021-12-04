@@ -1,0 +1,261 @@
+
+Secondary Code
+/*
+Code Written by Wesley Heikes and Jacob Crawford
+
+The following Code allows the TIRSLK Max to function as a roomba with a password lock
+and speakers.
+
+NOV 6, 2021
+ */
+
+//Included Libraries
+#include "msp.h"
+#include "stdint.h"
+#include "stdio.h"
+#include <stdbool.h>
+
+//Function Declarations
+void SysTick_Init(void);
+void bumpSwitch_init(void);
+void enableInterupt(void);
+void SysTick_Wait(uint32_t delay);
+void Clock_Init48MHz(void);
+void SuperStar();
+void BackupAlarm();
+void timeDelay(uint32_t delay, int number);
+void PORT4_IRQHandler(void);
+
+//Global Variables
+int flag;
+uint16_t duty;
+uint32_t time;
+bool Locked1 = true;
+bool Locked2 = true;
+bool Locked3 = true;
+
+//Main Function ----------------------------------------------------------
+void main(void)
+{
+
+    WDT_A->CTL = WDT_A_CTL_PW | WDT_A_CTL_HOLD; // stop watchdog timer
+    //Initialization function calls
+    SysTick_Init();
+    Clock_Init48MHz();
+    bumpSwitch_init();
+    enableInterupt();
+    __enable_irq();
+
+    //Local Variables
+    duty = 2000;
+    time = 500;
+    flag = 0;
+    uint32_t delay = 48000000;
+    int number = 2;
+
+
+    while(1)
+    {
+
+        if(flag == 1)
+        {
+            SuperStar();
+        }
+    }
+
+} //End MAIN -------------------------------------------------------------
+
+//Function Definitions
+void PORT4_IRQHandler(void)
+{
+    uint32_t i =0;
+
+    if(flag == 0)
+        {
+            switch (P4->IFG & 0xED)
+            {
+                case 0x01: //First Bump switch
+                    Locked1 = false;
+                    break;
+                case 0x04: //Second Bump switch
+                    Locked2 = false;
+
+                    //Test to see if first lock has been removed (fist number entered)
+                    if(Locked1 == true)
+                    {
+                        //Reset all locks
+                        Locked1 = true;
+                        Locked2 = true;
+                        Locked3 = true;
+                    }
+
+                    break;
+                case 0x08: //Third Bump switch
+                    Locked3 = false;
+
+                    //Test to see if first and second lock has been removed (fist and second number entered)
+                    if((Locked1 == true)||(Locked2 == true))
+                    {
+                        //Reset all locks
+                        Locked1 = true;
+                        Locked2 = true;
+                        Locked3 = true;
+                    }
+                    //If all locks are open blink green and change flag to 1.
+                    if((Locked1 == false)&&(Locked2 == false)&&(Locked3 == false))
+                    {
+                        flag = 1;
+                    }
+                    break;
+                default:
+                    break;
+            }
+            //Delay for switch debounce
+            for(i=0;i<750000;i++);
+
+            P4 -> IFG &= 0x00; //Reset the Flags
+        }
+    if(flag == 1)
+    {
+        int i;
+            switch (P4->IFG & 0xED)
+            {
+                case 0x01:
+                    BackupAlarm();
+                    for(i = 0; i < 5; i++){
+                    SysTick_Wait(12000000);}
+                    break;
+                case 0x04:
+                    BackupAlarm();
+                    for(i = 0; i < 5; i++){
+                    SysTick_Wait(12000000);}
+                    break;
+                case 0x08:
+                    BackupAlarm();
+                    for(i = 0; i < 5; i++){
+                    SysTick_Wait(12000000);}
+                    break;
+                case 0x20:
+                    BackupAlarm();
+                    for(i = 0; i < 5; i++){
+                    SysTick_Wait(12000000);}
+                    break;
+                case 0x40:
+                    BackupAlarm();
+                    for(i = 0; i < 5; i++){
+                    SysTick_Wait(12000000);}
+                    break;
+                case 0x80:
+                    BackupAlarm();
+                    for(i = 0; i < 5; i++){
+                    SysTick_Wait(12000000);}
+                    break;
+                default:
+                    break;
+            }
+            //Delay for switch debounce
+            for(i=0;i<750000;i++);
+
+            P4 -> IFG &= 0x00; //Reset the Flags
+      }
+
+}
+void enableInterupt(void)
+{
+    //ENABLING INTERUPT
+    P4 -> IE |= 0xED;
+    P4 -> IES |= 0xED;
+    P4 -> IFG &= 0x00;
+    NVIC -> ISER[1] |= (1<<6);
+}
+void timeDelay(uint32_t delay, int number)
+{
+    int t=0;
+    for(t=0; t<number; t++){
+        SysTick_Wait(delay);
+    }
+}
+
+
+void SuperStar()
+{
+    //Super Star Theme Song
+    P6->SEL0 &= ~0x20;
+    P6->SEL1 &= ~0x20;
+    P6->DIR |= 0x20;
+
+    uint16_t duty = 500;
+
+    int A = 712, D = 848, E = 1512, C = 1908;
+
+    int i,x;
+    int mario[20] = {A, A, A, D, A, A, D, A, D, A, E, E, E, C, E, E, C, E, C, E}; // Pitch
+    int rest[20] = {2400000,2400000,2400000,12000,2400000,2400000,12000,12000,12000,2400000,2400000,2400000,12000,2400000,2400000,12000,12000,12000,12000};
+    int time[20] = {250,250,250,170,170,170,170,170,170,250,140,140,140,90,90,90,90,90,90,140};
+    int temp;
+
+        for(x = 0; x<20; x++){
+
+        for(i=0; i<time[x]; i++)
+            {
+
+            P6->OUT |= 0x20;
+            SysTick_Wait(48*duty);
+            P6->OUT &= ~0x20;
+            SysTick_Wait(48*(mario[x]-duty));
+            }
+        temp = rest[x];
+        SysTick_Wait(temp);
+        }
+
+}
+
+void BackupAlarm()
+{
+    P6->SEL0 &= ~0x20;
+    P6->SEL1 &= ~0x20;
+    P6->DIR |= 0x20;
+
+    uint16_t duty = 500;
+
+    int i,x;
+
+        for(x = 0; x<3; x++){
+
+        for(i=0; i<1500; i++)
+            {
+
+            P6->OUT |= 0x20;
+            SysTick_Wait(48*duty);
+            P6->OUT &= ~0x20;
+            SysTick_Wait(48*(600-duty));
+            }
+        SysTick_Wait(48000000);
+        }
+
+}
+
+void SysTick_Init(void)
+{
+    //Initialization of SysTick Timer;
+    SysTick -> CTRL =0;
+    SysTick -> LOAD =0x00FFFFFF;
+    SysTick -> CTRL =0x00000005;
+}
+
+void SysTick_Wait(uint32_t delay)
+{
+    SysTick -> LOAD = delay-1;
+    SysTick -> VAL = 0;
+    while((SysTick ->CTRL & 0x00010000) ==0) {};
+}
+
+void bumpSwitch_init(void)
+{
+    P4 ->SEL0 &= ~0xED;
+    P4 ->SEL0 &= ~0xED;
+    P4 ->DIR &= ~0xED;
+    P4 ->REN |= 0xED;
+    P4 ->OUT |= 0xED;
+}
+
